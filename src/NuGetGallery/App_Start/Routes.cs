@@ -141,6 +141,17 @@ namespace NuGetGallery
                 new { controller = "Packages", action = "UploadPackageProgress" });
 
             routes.MapRoute(
+                RouteName.DownloadPackageByInput,
+                "packages/downloadbyinput",
+                new { controller = "Packages", action = "DownloadPackageByInput" });
+
+            routes.MapRoute(
+                "RouteName",
+                "test",
+                new { controller = "Packages", action = "test" },
+                new { httpMethod = new HttpMethodConstraint("POST") });
+
+            routes.MapRoute(
                 RouteName.VerifyPackage,
                 "packages/manage/verify-upload",
                 new { controller = "Packages", action = "VerifyPackage" });

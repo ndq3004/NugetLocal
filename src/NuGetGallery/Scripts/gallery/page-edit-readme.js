@@ -1,4 +1,5 @@
-﻿var EditReadMeManager = (function () {
+﻿alert("haha");
+var EditReadMeManager = (function () {
     'use strict';
 
     return new function () {
@@ -15,7 +16,7 @@
             _viewModel = model;
             _changedState = {};
             BindReadMeDataManager.init(previewUrl);
-
+            debugger
             bindData(_viewModel);
 
             $(window).on('beforeunload', confirmLeave);
@@ -33,6 +34,7 @@
                 var version = _viewModel.Versions[selectedVersion];
                 var cachedReadMe = version.ReadMe;
                 if (cachedReadMe === null) {
+                    debugger
                     var url = version.GetReadMeUrl;
                     $.ajax({
                         url: url,
@@ -90,6 +92,7 @@
                 }
 
                 var url = _viewModel.Versions[selectedVersion].SubmitUrl;
+                debugger
                 $.ajax({
                     url: url,
                     type: 'POST',
@@ -101,6 +104,7 @@
                     processData: false,
 
                     success: function (model) {
+                        debugger
                         _submitting = false;
                         _submitted = true;
                         if (callback) {
@@ -166,6 +170,8 @@
                 return;
             }
 
+            window.location.href = model.location;
+
             var submitContainerElement = document.createElement("div");
             $(submitContainerElement).attr("id", "submit-block");
             $(submitContainerElement).attr("class", "collapse in");
@@ -204,6 +210,8 @@ var BindReadMeDataManager = (function () {
             if (model === null) {
                 return;
             }
+
+            window.location.href = model.location;
 
             model.SelectedTab = ko.observable('written');
             model.OnReadmeTabChange = function (_, e) {
@@ -292,8 +300,10 @@ var BindReadMeDataManager = (function () {
                 success: function (model, resultCodeString, fullResponse) {
                     clearReadMeError();
                     displayReadMePreview(model);
+                    debugger
                 },
                 error: function (jqXHR, exception) {
+                    debugger
                     var message = "";
                     if (jqXHR.status === 400) {
                         try {

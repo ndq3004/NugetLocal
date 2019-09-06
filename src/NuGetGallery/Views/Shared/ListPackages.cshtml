@@ -10,6 +10,14 @@
     <div class="row-heading clearfix">
         <div class="cell-heading">
             <h1 role="alert">
+                @if(Model.TotalCount == 0)
+                {
+                    <div style="font-size:20px">
+                        <div>There is no package you want? Click to download this package with Release Version</div>
+                        <div id="click-to-download" style="cursor:pointer; color: blue">@Model.SearchTerm</div>
+                    </div>
+                }
+
                 @if (String.IsNullOrEmpty(Model.SearchTerm))
                 {
                     if (Model.TotalCount == 1)
@@ -101,6 +109,42 @@
             });
             </text>
         }
+
+        $("#click-to-download").on("click", function () {
+            var packageInfo = $("#click-to-download").text().trim();
+            var hasSpace = false;
+            for (var i = 0; i < packageInfo.length; i++) {
+                if (packageInfo[i] === ' ') {
+                    hasSpace = true;
+                    break;
+                }
+            }
+            var request
+            if (hasSpace) {
+                var packageObj = packageInfo.split(' ');
+                request = JSON.stringify({ Id: packageObj[0], Version: packageObj[1] });
+            }
+            else {
+                request = JSON.stringify({ Id: packageInfo, Version: "" });
+            }
+            console.log(request);
+            $.ajax({
+                method: "post",
+                url: "/packages/downloadbyinput",
+                contentType: "application/json",
+                data: request,
+                success: function (data) {
+                    console.log(data);
+                    if (data.location) {
+                        window.location.href = data.location;
+                    }
+                },
+                error: function (error) {
+                    alert(error);
+                }
+
+            });
+        });
 
         $(function () {
             var emitAiClickEvent = function () {

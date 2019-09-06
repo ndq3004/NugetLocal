@@ -37,6 +37,7 @@ namespace NuGetGallery
         public const string Authentication = "SignIn";
         public const string UploadPackage = "UploadPackage";
         public const string UploadPackageProgress = "UploadPackageProgress";
+        public const string DownloadPackageByInput = "DownloadPackageByInput";
         public const string PackageVersionAction = "PackageVersionAction";
         public const string ConfirmPendingOwnershipRequest = "ConfirmPendingOwnershipRequest";
         public const string PackageOwnerConfirmation = "PackageOwnerConfirmation";

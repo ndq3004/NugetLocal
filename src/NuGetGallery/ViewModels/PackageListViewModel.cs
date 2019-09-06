@@ -20,7 +20,9 @@ namespace NuGetGallery
             int pageSize,
             UrlHelper url,
             bool includePrerelease,
-            bool isPreviewSearch)
+            bool isPreviewSearch,
+            PackageToDownload packageToDownloads
+            )
         {
             PageIndex = pageIndex;
             IndexTimestampUtc = indexTimestampUtc;
@@ -38,6 +40,7 @@ namespace NuGetGallery
             Pager = pager;
             IncludePrerelease = includePrerelease;
             IsPreviewSearch = isPreviewSearch;
+            PackageToDownloads = packageToDownloads;
         }
 
         public int FirstResultIndex => 1 + (PageIndex * PageSize);
@@ -60,5 +63,8 @@ namespace NuGetGallery
         public bool IncludePrerelease { get; }
 
         public bool IsPreviewSearch { get; }
+
+        public PackageToDownload PackageToDownloads { get; }
     }
+    
 }
