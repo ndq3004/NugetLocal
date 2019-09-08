@@ -143,13 +143,14 @@ namespace NuGetGallery
             routes.MapRoute(
                 RouteName.DownloadPackageByInput,
                 "packages/downloadbyinput",
-                new { controller = "Packages", action = "DownloadPackageByInput" });
+                new { controller = "Packages", action = "DownloadPackageByInput" },
+                new { httpMethod = new HttpMethodConstraint("POST") });
 
             routes.MapRoute(
                 "RouteName",
                 "test",
                 new { controller = "Packages", action = "test" },
-                new { httpMethod = new HttpMethodConstraint("POST") });
+                constraints: new { httpMethod = new HttpMethodConstraint("POST") });
 
             routes.MapRoute(
                 RouteName.VerifyPackage,

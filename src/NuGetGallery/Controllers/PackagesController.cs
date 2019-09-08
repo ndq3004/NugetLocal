@@ -409,7 +409,6 @@ namespace NuGetGallery
         }
 
         [HttpPost]
-        [UIAuthorize]
         public string test(PostPackageInfo info)
         {
             return "lêu lêu" + info.Id;
@@ -424,6 +423,12 @@ namespace NuGetGallery
             string packageId = packageInfo.Id;
             //var currentUser = GetCurrentUser();
             DependencyTrack dependencyTrack = new DependencyTrack();
+            IEnumerable<NuGet.PackageDependencySet> packageDependencySets = dependencyTrack.GetDependencySet(packageId, "");
+            foreach(NuGet.PackageDependencySet p in packageDependencySets)
+            {
+                DownloadDependency(p);
+            }
+            
             Uri uri = dependencyTrack.GetDownloadUri(packageId, null);
             var req = WebRequest.Create(uri);
             Stream stream = req.GetResponse().GetResponseStream();
@@ -1047,6 +1052,8 @@ namespace NuGetGallery
 
             var page = searchAndListModel.Page;
             var q = searchAndListModel.Q;
+            
+
             var includePrerelease = searchAndListModel.Prerel ?? true;
             PackageToDownload packageToDownload = new PackageToDownload();
 
@@ -1124,10 +1131,15 @@ namespace NuGetGallery
                 //init repository and download package
                 string packageId = q;
                 DependencyTrack dependencyTrack = new DependencyTrack();
-                dependencyTrack.GetDownloadUri(packageId, null);
-
-
-
+                Uri uri = dependencyTrack.GetDownloadUri(packageId, null);
+                if(uri == null)
+                {
+                    packageToDownload.Exist = false;
+                }
+                else
+                {
+                    packageToDownload.Exist = true;
+                }
             }
             if (page == 1 && !results.Data.Any())
             {
@@ -2413,6 +2425,7 @@ namespace NuGetGallery
 
                 packageId = packageMetadata.Id;
                 packageVersion = packageMetadata.Version;
+                
 
                 var existingPackageRegistration = _packageService.FindPackageRegistrationById(packageId);
                 if (existingPackageRegistration == null)
@@ -2565,7 +2578,11 @@ namespace NuGetGallery
                     switch (commitResult)
                     {
                         case PackageCommitResult.Success:
-                            break;
+                            {
+
+                                //DownloadDependency()
+                                break;
+                            }
                         case PackageCommitResult.Conflict:
                             TempData["Message"] = Strings.UploadPackage_IdVersionConflict;
                             return Json(HttpStatusCode.Conflict, new[] { new JsonValidationMessage(Strings.UploadPackage_IdVersionConflict) });
@@ -3042,9 +3059,127 @@ namespace NuGetGallery
             }
         }
 
-        public void DownloadDependency()
+        public virtual async Task<JsonResult> DownloadPackage(Object downloadInfo)
         {
+            MemoryStream ms = null;
+            if (downloadInfo is PostPackageInfo)
+            {
+                //downloadInfo = (PostPackageInfo)downloadInfo;
+                PostPackageInfo downloadInfoCasted = (PostPackageInfo)downloadInfo;
+                string packageId = downloadInfoCasted.Id;
+                string packageVersion = downloadInfoCasted.Version;
+                DependencyTrack dependencyTrack = new DependencyTrack();
+                Uri uri =(packageVersion == null) ? dependencyTrack.GetDownloadUri(packageId, null) 
+                                                    : dependencyTrack.GetDownloadUri(packageId, packageVersion);
+                var req = WebRequest.Create(uri);
+                Stream stream = req.GetResponse().GetResponseStream();
+                ms = new MemoryStream();
+                stream.CopyTo(ms);
+            }
+            else if(downloadInfo is HttpPostedFileBase)
+            {
 
+            }
+
+            var currentUser = GetCurrentUser();
+
+            string uploadTracingKey = UploadHelper.GetUploadTracingKey(Request.Headers);
+
+            //using (var existingUploadFile = await _uploadFileService.GetUploadFileAsync(currentUser.Key))
+            //{
+            //    if (existingUploadFile != null)
+            //    {
+            //        return Json(HttpStatusCode.Conflict, new[] { new JsonValidationMessage(Strings.UploadPackage_UploadInProgress) });
+            //    }
+            //}
+
+            //if (uploadFile == null)
+            //{
+            //    return Json(HttpStatusCode.BadRequest, new[] { new JsonValidationMessage(Strings.UploadFileIsRequired) });
+            //}
+
+            //if (!AllowedPackageExtentions.Contains(Path.GetExtension(uploadFile.FileName)))
+            //{
+            //    return Json(HttpStatusCode.BadRequest, new[] { new JsonValidationMessage(Strings.UploadFileMustBeNuGetPackage) });
+            //}
+
+            using (var uploadStream = ms)
+            {
+                try
+                {
+                    PackageArchiveReader packageArchiveReader = CreatePackage(uploadStream);
+                    NuspecReader nuspec;
+                    PackageMetadata packageMetadata;
+                    var errors = ManifestValidator.Validate(packageArchiveReader.GetNuspec(), out nuspec, out packageMetadata).ToArray();
+                    if (errors.Length > 0)
+                    {
+                        var errorStrings = new List<JsonValidationMessage>();
+                        foreach (var error in errors)
+                        {
+                            errorStrings.Add(new JsonValidationMessage(error.ErrorMessage));
+                        }
+
+                        return Json(HttpStatusCode.BadRequest, errorStrings.ToArray());
+                    }
+
+                    if (packageMetadata.IsSymbolsPackage())
+                    {
+                        return await UploadSymbolsPackageInternal(packageArchiveReader, uploadStream, nuspec, packageMetadata);
+                    }
+                    else
+                    {
+                        return await UploadPackageInternal(packageArchiveReader, uploadStream, nuspec, packageMetadata);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    return FailedToReadFile(ex);
+                }
+                finally
+                {
+                    var username = currentUser.Username;
+                    var uploadKey = username + uploadTracingKey;
+                    _cacheService.RemoveProgress(uploadKey);
+                    
+                }
+            }
+        }
+
+        /// <summary>
+        /// Function: DownloadDependency
+        /// Paramater: PackageDependencySet
+        /// B1: Kiểm tra số lượng dependency. Nếu khác 0 thì -> B2, bằng 0 thì dừng
+        /// B2: Duyệt từng phẩn tử trong Set, Lấy ra thông tin ID, version, và dependencySet của phần tử
+        /// B3: Download(submit) phần tử và gọi đến DownloadDependency với package đó
+        /// </summary>
+        /// <param name="packageDependencySet"></param>
+
+
+        public void DownloadDependency(NuGet.PackageDependencySet packageDependencySet)
+        {
+            if(packageDependencySet.Dependencies.Count > 0)
+            {
+                DependencyTrack dependencyTrack = new DependencyTrack();
+
+                foreach(NuGet.PackageDependency p in packageDependencySet.Dependencies)
+                {
+                    string id = p.Id;
+                    string version = p.VersionSpec.ToStringSafe();
+                    IEnumerable<NuGet.PackageDependencySet> packageDependencySets = dependencyTrack.GetDependencySet(id, version);
+                    //Download package
+                    PostPackageInfo pkInfo = new PostPackageInfo(id, version);
+                    Task<JsonResult> downloadResult = DownloadPackage(pkInfo);
+                    foreach(NuGet.PackageDependencySet d in packageDependencySets)
+                    {
+                        DownloadDependency(d);
+                    }
+                    //NuGet.PackageDependencySet packageDependencySet
+                }
+            }
+            //return Json(new
+            //{
+            //    //location = returnUrl ?? Url.Package(id, version)
+            //});
         }
 
 

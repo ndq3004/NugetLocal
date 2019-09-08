@@ -9,5 +9,15 @@ namespace NuGetGallery.RequestModels
     {
         public string Id { get; set; }
         public string Version { get; set; }
+        public PostPackageInfo()
+        {
+            Id = "";
+            Version = null;
+        }
+        public PostPackageInfo(string id, string version)
+        {
+            Id = id;
+            Version = version;
+        }
     }
 }

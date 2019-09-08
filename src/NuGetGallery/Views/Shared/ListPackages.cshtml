@@ -10,13 +10,21 @@
     <div class="row-heading clearfix">
         <div class="cell-heading">
             <h1 role="alert">
-                @if(Model.TotalCount == 0)
+                @if (Model.TotalCount == 0)
                 {
-                    <div style="font-size:20px">
-                        <div>There is no package you want? Click to download this package with Release Version</div>
-                        <div id="click-to-download" style="cursor:pointer; color: blue">@Model.SearchTerm</div>
-                    </div>
+                    if (Model.PackageToDownloads.Exist)
+                    {@*Click here to download*@
+                    <div>Package found, but not availble!</div>
+                    <div name="@Model.SearchTerm" 
+                         id="click-to-download" 
+                         style="cursor:pointer; 
+                                color: blue">@Model.SearchTerm</div>
                 }
+                else
+                {
+                    <div>Package doesn't exist!</div>
+                }
+            }
 
                 @if (String.IsNullOrEmpty(Model.SearchTerm))
                 {
@@ -111,7 +119,9 @@
         }
 
         $("#click-to-download").on("click", function () {
-            var packageInfo = $("#click-to-download").text().trim();
+            //var packageInfo = document.getElementById("click-to-download").getAttribute("package-name");
+            //var packageInfo = $("#click-to-download").attr("name").trim();
+            var packageInfo = $("#click-to-download").html();
             var hasSpace = false;
             for (var i = 0; i < packageInfo.length; i++) {
                 if (packageInfo[i] === ' ') {

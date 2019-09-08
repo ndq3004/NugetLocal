@@ -9,6 +9,7 @@ namespace NuGetGallery
     {
         public string PackageToDownloadId { get; set; }
         public string PackageToDownloadVersion { get; set; }
-
+        public bool Exist { get; set; }
+        public string ErrorsDownloadDependencies { get; set; }
     }
 }

@@ -1,13 +1,20 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Web;
+using System.Web.Http.Results;
 using NuGet;
+using NuGet.Services.Entities;
 
 namespace NuGetGallery.Services
 {
-    public class DependencyTrack
+    //private readonly IPackageService _packageService;
+
+    public class DependencyTrack : ApiController
     {
+        
+
         public Uri GetDownloadUri(string packageID, string version)
         {
             //Connect to the official package repository 
@@ -16,19 +23,26 @@ namespace NuGetGallery.Services
             //Get the list of all NuGet packages with ID 'EntityFramework' 
             List<IPackage> packages = repo.FindPackagesById(packageID).ToList();
             IPackage packageGet = null;
-            if (version != null && version.Trim().Length != 0)
+            if(packages.Count > 0)
             {
-                SemanticVersion semanticVersion = new SemanticVersion(version);
-                packageGet = dependencyTrack.FindPackageByVersion(packages, semanticVersion);
+                if (version != null && version.Trim().Length != 0)
+                {
+                    SemanticVersion semanticVersion = new SemanticVersion(version);
+                    packageGet = dependencyTrack.FindPackageByVersion(packages, semanticVersion);
+                }
+                else
+                {
+                    packageGet = dependencyTrack.FindPackageByVersion(packages, null);
+                }
+
+                //Filter the list of packages that are not Release (Stable) versions 
+                DataServicePackage dsPackage = (DataServicePackage)packageGet;
+                return dsPackage.DownloadUrl;
             }
             else
             {
-                packageGet = dependencyTrack.FindPackageByVersion(packages, null);
+                return null;
             }
-            
-            //Filter the list of packages that are not Release (Stable) versions 
-            DataServicePackage dsPackage = (DataServicePackage)packageGet;
-            return dsPackage.DownloadUrl;
         }
         public IPackage FindPackageByVersion(List<IPackage> packages, SemanticVersion sematicVersion)
         {
@@ -56,20 +70,33 @@ namespace NuGetGallery.Services
             return packages.Last();
         }
 
-        public void GetDependency(PackageDependencySet packageDependencySet)
+        public IEnumerable<PackageDependencySet> GetDependencySet(string packageID, string version)
         {
+            //Connect to the official package repository 
             IPackageRepository repo = PackageRepositoryFactory.Default.CreateRepository("https://packages.nuget.org/api/v2");
-            List<IPackage> packages = null;
             DependencyTrack dependencyTrack = new DependencyTrack();
-            foreach (PackageDependency p in packageDependencySet.Dependencies)
+            //Get the list of all NuGet packages with ID 'EntityFramework' 
+            List<IPackage> packages = repo.FindPackagesById(packageID).ToList();
+            IPackage packageGet = null;
+            if (packages.Count > 0)
             {
-                string id = p.Id;
-                IVersionSpec versionSpec = p.VersionSpec;
-                SemanticVersion version = new SemanticVersion(versionSpec.ToString());
-                packages = repo.FindPackagesById(id).ToList();
-                IPackage package = FindPackageByVersion(packages, version);
-                DataServicePackage dspk = (DataServicePackage)package;
-                Uri downloadUrl = new Uri(dspk.DownloadUrl.AbsoluteUri);
+                if (version != null && version.Trim().Length != 0)
+                {
+                    SemanticVersion semanticVersion = new SemanticVersion(version);
+                    packageGet = dependencyTrack.FindPackageByVersion(packages, semanticVersion);
+                }
+                else
+                {
+                    packageGet = dependencyTrack.FindPackageByVersion(packages, null);
+                }
+
+                //Filter the list of packages that are not Release (Stable) versions 
+                DataServicePackage dsPackage = (DataServicePackage)packageGet;
+                return dsPackage.DependencySets;
+            }
+            else
+            {
+                return null;
             }
         }
 
@@ -81,5 +108,22 @@ namespace NuGetGallery.Services
             packageInfo.PackageToDownloadVersion = SplitString[1];
             return packageInfo;
         }
+
+        public string DownloadDependencies()
+        {
+            List<string> listError = new List<string>();
+
+
+            return "";
+        }
+
+        public void DownloadDependency()
+        {
+            //string id = "Autofac.WebApi2";
+            //IPackageService packageService;
+            //PackageRegistration packageRegistration = packageService.FindPackageRegistrationById(id);
+            
+            //return true;
+        } 
     }
 }
