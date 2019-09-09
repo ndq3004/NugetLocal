@@ -2040,6 +2040,7 @@
     <Folder Include="Authentication\Providers\" />
     <Folder Include="Infrastructure\Authentication\" />
     <Folder Include="Security\" />
+    <Folder Include="Worker\" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\NuGet.Services.Entities\NuGet.Services.Entities.csproj">

@@ -11,6 +11,7 @@ using System.Net;
 using System.Net.Mail;
 using System.ServiceModel.Syndication;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Web;
 using System.Web.Caching;
@@ -414,6 +415,9 @@ namespace NuGetGallery
             return "lêu lêu" + info.Id;
         }
 
+
+
+
         [HttpPost]
         [UIAuthorize]
         //[ValidateAntiForgeryToken]
@@ -424,19 +428,50 @@ namespace NuGetGallery
             //var currentUser = GetCurrentUser();
             DependencyTrack dependencyTrack = new DependencyTrack();
             IEnumerable<NuGet.PackageDependencySet> packageDependencySets = dependencyTrack.GetDependencySet(packageId, "");
-            foreach(NuGet.PackageDependencySet p in packageDependencySets)
-            {
-                DownloadDependency(p);
-            }
-            
+            //foreach(NuGet.PackageDependencySet p in packageDependencySets)
+            //{
+            //    DownloadDependency(p);
+            //}
+
             Uri uri = dependencyTrack.GetDownloadUri(packageId, null);
             var req = WebRequest.Create(uri);
             Stream stream = req.GetResponse().GetResponseStream();
             MemoryStream ms = new MemoryStream();
             stream.CopyTo(ms);
+            String x = "{5.8.1}";
+            bool match;
+            match = Regex.IsMatch(x, @"[0-9. ]");
+            String y = "5.8.6";
+            match = Regex.IsMatch(y, @"[0-9. ]");
             //FileStream file = new FileStream(@"d:\cocol.1.6.2.nupkg", FileMode.Open, FileAccess.Read);
             //MemoryStream ms = new MemoryStream();
             //file.CopyTo(ms);
+            var countNumberDependencySet = packageDependencySets.ToArray().Length;
+            if (countNumberDependencySet > 0)
+            {
+                foreach (NuGet.PackageDependencySet set in packageDependencySets)
+                {
+                    if(set.Dependencies.Count > 0)
+                    {
+                        foreach (NuGet.PackageDependency pack in set.Dependencies)
+                        {
+                            string dependencyId = pack.Id;
+                            string dependencyVersion = pack.VersionSpec.MaxVersion.ToStringSafe();
+
+                            PostPackageInfo dependencyPackageInfo = (dependencyVersion == null || dependencyVersion == "")? 
+                                                                        new PostPackageInfo(dependencyId, null) 
+                                                                        : new PostPackageInfo(dependencyId, dependencyVersion);
+
+                            //var t = new Task(async () => {
+                            //    await DownloadPackage(dependencyPackageInfo);
+                            //});
+
+                            //t.Start();
+                            await DownloadPackage(dependencyPackageInfo);
+                        }
+                    }
+                }
+            }
 
 
             //using (Stream uploadStream = req.GetResponse().GetResponseStream())
@@ -1052,9 +1087,15 @@ namespace NuGetGallery
 
             var page = searchAndListModel.Page;
             var q = searchAndListModel.Q;
-            
+            String x = "{5.8.1}";
+            bool match;
+            match = Regex.IsMatch(x, @"[0-9. ]");
+            String y = "5.8.6";
+            match = Regex.IsMatch(y, @"[0-9. ]");
 
             var includePrerelease = searchAndListModel.Prerel ?? true;
+            String z = "{5.8.6}";
+            match = Regex.IsMatch(z, @"[0-9].[0-9].[0-9]");
             PackageToDownload packageToDownload = new PackageToDownload();
 
             if (page < 1)
@@ -3060,7 +3101,7 @@ namespace NuGetGallery
         }
 
         public virtual async Task<JsonResult> DownloadPackage(Object downloadInfo)
-        {
+        {            
             MemoryStream ms = null;
             if (downloadInfo is PostPackageInfo)
             {
@@ -3069,7 +3110,7 @@ namespace NuGetGallery
                 string packageId = downloadInfoCasted.Id;
                 string packageVersion = downloadInfoCasted.Version;
                 DependencyTrack dependencyTrack = new DependencyTrack();
-                Uri uri =(packageVersion == null) ? dependencyTrack.GetDownloadUri(packageId, null) 
+                Uri uri =(packageVersion == null || packageVersion.Trim() == "") ? dependencyTrack.GetDownloadUri(packageId, null) 
                                                     : dependencyTrack.GetDownloadUri(packageId, packageVersion);
                 var req = WebRequest.Create(uri);
                 Stream stream = req.GetResponse().GetResponseStream();

@@ -25,7 +25,7 @@ namespace NuGetGallery.Services
             IPackage packageGet = null;
             if(packages.Count > 0)
             {
-                if (version != null && version.Trim().Length != 0)
+                if (version != null && version.Trim()  == "")
                 {
                     SemanticVersion semanticVersion = new SemanticVersion(version);
                     packageGet = dependencyTrack.FindPackageByVersion(packages, semanticVersion);
@@ -80,7 +80,7 @@ namespace NuGetGallery.Services
             IPackage packageGet = null;
             if (packages.Count > 0)
             {
-                if (version != null && version.Trim().Length != 0)
+                if (version != null && version.Trim() != "")
                 {
                     SemanticVersion semanticVersion = new SemanticVersion(version);
                     packageGet = dependencyTrack.FindPackageByVersion(packages, semanticVersion);
