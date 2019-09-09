@@ -428,24 +428,13 @@ namespace NuGetGallery
             //var currentUser = GetCurrentUser();
             DependencyTrack dependencyTrack = new DependencyTrack();
             IEnumerable<NuGet.PackageDependencySet> packageDependencySets = dependencyTrack.GetDependencySet(packageId, "");
-            //foreach(NuGet.PackageDependencySet p in packageDependencySets)
-            //{
-            //    DownloadDependency(p);
-            //}
 
             Uri uri = dependencyTrack.GetDownloadUri(packageId, null);
             var req = WebRequest.Create(uri);
             Stream stream = req.GetResponse().GetResponseStream();
             MemoryStream ms = new MemoryStream();
             stream.CopyTo(ms);
-            String x = "{5.8.1}";
-            bool match;
-            match = Regex.IsMatch(x, @"[0-9. ]");
-            String y = "5.8.6";
-            match = Regex.IsMatch(y, @"[0-9. ]");
-            //FileStream file = new FileStream(@"d:\cocol.1.6.2.nupkg", FileMode.Open, FileAccess.Read);
-            //MemoryStream ms = new MemoryStream();
-            //file.CopyTo(ms);
+
             var countNumberDependencySet = packageDependencySets.ToArray().Length;
             if (countNumberDependencySet > 0)
             {
@@ -456,7 +445,8 @@ namespace NuGetGallery
                         foreach (NuGet.PackageDependency pack in set.Dependencies)
                         {
                             string dependencyId = pack.Id;
-                            string dependencyVersion = pack.VersionSpec.MaxVersion.ToStringSafe();
+                            string dependencyVersion = (pack.VersionSpec.IsMaxInclusive) ? pack.VersionSpec.MaxVersion.ToStringSafe()
+                                                                                        : pack.VersionSpec.MinVersion.ToStringSafe();
 
                             PostPackageInfo dependencyPackageInfo = (dependencyVersion == null || dependencyVersion == "")? 
                                                                         new PostPackageInfo(dependencyId, null) 
@@ -1087,15 +1077,9 @@ namespace NuGetGallery
 
             var page = searchAndListModel.Page;
             var q = searchAndListModel.Q;
-            String x = "{5.8.1}";
-            bool match;
-            match = Regex.IsMatch(x, @"[0-9. ]");
-            String y = "5.8.6";
-            match = Regex.IsMatch(y, @"[0-9. ]");
 
             var includePrerelease = searchAndListModel.Prerel ?? true;
-            String z = "{5.8.6}";
-            match = Regex.IsMatch(z, @"[0-9].[0-9].[0-9]");
+
             PackageToDownload packageToDownload = new PackageToDownload();
 
             if (page < 1)
@@ -3103,19 +3087,50 @@ namespace NuGetGallery
         public virtual async Task<JsonResult> DownloadPackage(Object downloadInfo)
         {            
             MemoryStream ms = null;
+            DependencyTrack dependencyTrack = new DependencyTrack();
             if (downloadInfo is PostPackageInfo)
             {
                 //downloadInfo = (PostPackageInfo)downloadInfo;
                 PostPackageInfo downloadInfoCasted = (PostPackageInfo)downloadInfo;
                 string packageId = downloadInfoCasted.Id;
                 string packageVersion = downloadInfoCasted.Version;
-                DependencyTrack dependencyTrack = new DependencyTrack();
+                
                 Uri uri =(packageVersion == null || packageVersion.Trim() == "") ? dependencyTrack.GetDownloadUri(packageId, null) 
                                                     : dependencyTrack.GetDownloadUri(packageId, packageVersion);
                 var req = WebRequest.Create(uri);
                 Stream stream = req.GetResponse().GetResponseStream();
                 ms = new MemoryStream();
                 stream.CopyTo(ms);
+
+                IEnumerable<NuGet.PackageDependencySet> packageDependencySets = dependencyTrack.GetDependencySet(packageId, "");
+
+                var countNumberDependencySet = packageDependencySets.ToArray().Length;
+                if (countNumberDependencySet > 0)
+                {
+                    foreach (NuGet.PackageDependencySet set in packageDependencySets)
+                    {
+                        if (set.Dependencies.Count > 0)
+                        {
+                            foreach (NuGet.PackageDependency pack in set.Dependencies)
+                            {
+                                string dependencyId = pack.Id;
+                                string dependencyVersion = (pack.VersionSpec.IsMaxInclusive) ? pack.VersionSpec.MaxVersion.ToStringSafe()
+                                                                                            : pack.VersionSpec.MinVersion.ToStringSafe();
+
+                                PostPackageInfo dependencyPackageInfo = (dependencyVersion == null || dependencyVersion == "") ?
+                                                                            new PostPackageInfo(dependencyId, null)
+                                                                            : new PostPackageInfo(dependencyId, dependencyVersion);
+
+                                //var t = new Task(async () => {
+                                //    await DownloadPackage(dependencyPackageInfo);
+                                //});
+
+                                //t.Start();
+                                await DownloadPackage(dependencyPackageInfo);
+                            }
+                        }
+                    }
+                }
             }
             else if(downloadInfo is HttpPostedFileBase)
             {
