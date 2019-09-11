@@ -53,10 +53,7 @@
                 }
             </h1>
             <h2>
-                <text>You mean </text><br />
-                <ul id="suggestion">
-
-                </ul>
+                
             </h2>
         </div>
         <div class="cell-controls">
@@ -95,10 +92,14 @@
             @ViewHelpers.PreviousNextPager(Model.Pager)
         </div>
     </div>
+    <div id="suggest-field" style="display:none">
+        <text>You mean  </text><br />
+        <ul id="suggestion"></ul>
+    </div>
 </section>
 
 @section bottomScripts {
-    <script type="text/javascript">
+<script type="text/javascript">
         // Used to track how long the user waited before clicking a search selection.
         var pageLoadTime = Date.now();
 
@@ -125,8 +126,8 @@
             </text>
         }
 
-        function callDownloadNuget() {
-            $("[name='download-package']").on("click", function () {
+        function callDownloadNuget(element) {
+            $(element).on("click", function () {
                 //var packageInfo = document.getElementById("click-to-download").getAttribute("package-name");
                 //var packageInfo = $("#click-to-download").attr("name").trim();
                 var packageInfo = $(this).html().trim();
@@ -137,7 +138,7 @@
                         break;
                     }
                 }
-                var request
+                var request;
                 if (hasSpace) {
                     var packageObj = packageInfo.split(' ');
                     request = JSON.stringify({ Id: packageObj[0], Version: packageObj[1] });
@@ -157,44 +158,68 @@
                             window.location.href = data.location;
                         }
                     },
-                    error: function (error) {
-                        alert(error);
+                    error: function (error, data, xhr) {
+                        console.log(error);
+                        console.log(data);
+                        console.log(xhr);
+                        let pack = '';
+                        if (hasSpace) {
+                            pack = packageInfo.split(' ')[0];
+                        }
+                        else {
+                            pack = packageInfo;
+                        }
+                        $.ajax({
+                            method: "get",
+                            url: "test-package/" + pack,
+                            success: function (res) {
+                                if (res === "Found") {
+                                    window.location.href = "/packages/"+pack;
+                                }
+
+                                else {
+                                    alert("Error when download! Please try again");
+                                }
+                            }
+                        })
                     }
 
                 });
             });
         }
 
-        callDownloadNuget();
+        callDownloadNuget("[name='download-package']");
 
-        $(document).ready(function () {
-            if (@Model.SearchTerm.Length > 0) {
-                var exist = @Model.PackageToDownloads.Exist.ToString().ToLower() === "true" ? true : false;
-                if (@Model.TotalCount == 0 && !exist) {
-                    $.ajax({
-                        method: "get",
-                        url: "https://api-v2v3search-0.nuget.org/autocomplete?q="+"@Model.SearchTerm.ToString()"+"&prerelease=true",
-                        success: function (data, status, xhr) {
-                            console.log(data);
-                            console.log(status);
-                            console.log(xhr);
-                            let suggestPackage = data.data;
-                            for (var i = 0; i < suggestPackage.length; i++) {
-                                $("#suggestion").append("<li style='cursor:pointer; color:blue;' name='download-package'>" + suggestPackage[i] + "</li>");
-                                callDownloadNuget();
-                            }
-                        },
-                        error: function (error) {
-                            alert(error);
-                        }
-
-                    });
+    $(document).ready(function () {
+        var viewModelEncode = @Html.Raw(Json.Encode(Model));
+        console.log(viewModelEncode);
+        if (viewModelEncode.NeedSuggestion === "Yes") {
+            $("#suggest-field").css("display", "block");
+            $.ajax({
+                method: "get",
+                url: "https://api-v2v3search-0.nuget.org/autocomplete?q="+"@Model.SearchTerm.ToString()"+"&prerelease=true",
+                success: function (data, status, xhr) {
+                    console.log(data);
+                    console.log(status);
+                    console.log(xhr);
+                    let suggestPackage = data.data;
+                    for (var i = 0; i < suggestPackage.length; i++) {
+                        $("#suggestion").append("<li style='cursor:pointer; color:blue;' name='suggest-package'>" + suggestPackage[i] + "</li>");
+                        //callDownloadNuget("[name='suggest-package']");
+                    }
+                    callDownloadNuget("[name='suggest-package']");
+                },
+                error: function (error) {
+                    alert(error);
                 }
+
+            });
+                
             }
         });
 
-        
-        
+
+
         $(function () {
             var emitAiClickEvent = function () {
                 if (!window.nuget.isAiAvailable()) {
@@ -233,5 +258,5 @@
                 });
             });
         });
-    </script>
+</script>
 }

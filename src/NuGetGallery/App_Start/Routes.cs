@@ -147,10 +147,9 @@ namespace NuGetGallery
                 new { httpMethod = new HttpMethodConstraint("POST") });
 
             routes.MapRoute(
-                "RouteName",
-                "test",
-                new { controller = "Packages", action = "test" },
-                constraints: new { httpMethod = new HttpMethodConstraint("POST") });
+                "TestPackage",
+                "test-package/{id}",
+                new { controller = "Packages", action = "TestPackage" });
 
             routes.MapRoute(
                 RouteName.VerifyPackage,

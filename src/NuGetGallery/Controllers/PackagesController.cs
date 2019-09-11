@@ -409,10 +409,23 @@ namespace NuGetGallery
             }
         }
 
-        [HttpPost]
-        public string test(PostPackageInfo info)
+        [HttpGet]
+        [UIAuthorize]
+        public string TestPackage(string id)
         {
-            return "lêu lêu" + info.Id;
+            Dictionary<string, string> res = new Dictionary<string, string>();
+            PackageRegistration existingPackageRegistration = _packageService.FindPackageRegistrationById(id);
+            if(existingPackageRegistration != null)
+            {
+
+                //return Json(HttpStatusCode.BadRequest, new[] {   });
+                return "Found";
+            }
+            else
+            {
+                return "NotFound";
+            }
+
         }
 
 
@@ -428,41 +441,45 @@ namespace NuGetGallery
             //var currentUser = GetCurrentUser();
             DependencyTrack dependencyTrack = new DependencyTrack();
             IEnumerable<NuGet.PackageDependencySet> packageDependencySets = dependencyTrack.GetDependencySet(packageId, "");
+            
+            PackageRegistration existingPackageRegistration = _packageService.FindPackageRegistrationById(packageId);
+
+            if(existingPackageRegistration == null)
+            {
+                var countNumberDependencySet = packageDependencySets.ToArray().Length;
+                if (countNumberDependencySet > 0)
+                {
+                    foreach (NuGet.PackageDependencySet set in packageDependencySets)
+                    {
+                        if (set.Dependencies.Count > 0)
+                        {
+                            foreach (NuGet.PackageDependency pack in set.Dependencies)
+                            {
+                                string dependencyId = pack.Id;
+                                string dependencyVersion = (pack.VersionSpec.IsMaxInclusive) ? pack.VersionSpec.MaxVersion.ToStringSafe()
+                                                                                            : pack.VersionSpec.MinVersion.ToStringSafe();
+
+                                PostPackageInfo dependencyPackageInfo = (dependencyVersion == null || dependencyVersion == "") ?
+                                                                            new PostPackageInfo(dependencyId, null)
+                                                                            : new PostPackageInfo(dependencyId, dependencyVersion);
+
+                                //var t = new Task(async () => {
+                                //    await DownloadPackage(dependencyPackageInfo);
+                                //});
+
+                                //t.Start();
+                                await DownloadPackage(dependencyPackageInfo);
+                            }
+                        }
+                    }
+                }
+            }
 
             Uri uri = dependencyTrack.GetDownloadUri(packageId, null);
             var req = WebRequest.Create(uri);
             Stream stream = req.GetResponse().GetResponseStream();
             MemoryStream ms = new MemoryStream();
             stream.CopyTo(ms);
-
-            var countNumberDependencySet = packageDependencySets.ToArray().Length;
-            if (countNumberDependencySet > 0)
-            {
-                foreach (NuGet.PackageDependencySet set in packageDependencySets)
-                {
-                    if(set.Dependencies.Count > 0)
-                    {
-                        foreach (NuGet.PackageDependency pack in set.Dependencies)
-                        {
-                            string dependencyId = pack.Id;
-                            string dependencyVersion = (pack.VersionSpec.IsMaxInclusive) ? pack.VersionSpec.MaxVersion.ToStringSafe()
-                                                                                        : pack.VersionSpec.MinVersion.ToStringSafe();
-
-                            PostPackageInfo dependencyPackageInfo = (dependencyVersion == null || dependencyVersion == "")? 
-                                                                        new PostPackageInfo(dependencyId, null) 
-                                                                        : new PostPackageInfo(dependencyId, dependencyVersion);
-
-                            //var t = new Task(async () => {
-                            //    await DownloadPackage(dependencyPackageInfo);
-                            //});
-
-                            //t.Start();
-                            await DownloadPackage(dependencyPackageInfo);
-                        }
-                    }
-                }
-            }
-
 
             //using (Stream uploadStream = req.GetResponse().GetResponseStream())
             using (Stream uploadStream = ms)
@@ -1176,7 +1193,8 @@ namespace NuGetGallery
             var items = results.Data
                 .Select(pv => _listPackageItemViewModelFactory.Create(pv, currentUser))
                 .ToList();
-
+            string exactExist = (results.Data.Where(pk => (pk.Id.Equals(q))).ToList().Count > 0) ? "Yes" : "No";
+            string needSuggestion = (exactExist.Equals("No") && packageToDownload.Exist == false) ? "Yes" : "No";
             var viewModel = new PackageListViewModel(
                 items,
                 results.IndexTimestampUtc,
@@ -1187,8 +1205,10 @@ namespace NuGetGallery
                 Url,
                 includePrerelease,
                 isPreviewSearchEnabled,
-                packageToDownload);
-
+                packageToDownload,
+                needSuggestion,
+                exactExist);
+            
             ViewBag.SearchTerm = q;
 
             return View(viewModel);
@@ -3104,33 +3124,40 @@ namespace NuGetGallery
 
                 IEnumerable<NuGet.PackageDependencySet> packageDependencySets = dependencyTrack.GetDependencySet(packageId, "");
 
-                var countNumberDependencySet = packageDependencySets.ToArray().Length;
-                if (countNumberDependencySet > 0)
+                PackageRegistration existingPackageRegistration = _packageService.FindPackageRegistrationById(packageId);
+
+                if(existingPackageRegistration == null)
                 {
-                    foreach (NuGet.PackageDependencySet set in packageDependencySets)
+                    var countNumberDependencySet = packageDependencySets.ToArray().Length;
+                    if (countNumberDependencySet > 0)
                     {
-                        if (set.Dependencies.Count > 0)
+                        foreach (NuGet.PackageDependencySet set in packageDependencySets)
                         {
-                            foreach (NuGet.PackageDependency pack in set.Dependencies)
+                            if (set.Dependencies.Count > 0)
                             {
-                                string dependencyId = pack.Id;
-                                string dependencyVersion = (pack.VersionSpec.IsMaxInclusive) ? pack.VersionSpec.MaxVersion.ToStringSafe()
-                                                                                            : pack.VersionSpec.MinVersion.ToStringSafe();
+                                foreach (NuGet.PackageDependency pack in set.Dependencies)
+                                {
+                                    string dependencyId = pack.Id;
+                                    string dependencyVersion = (pack.VersionSpec.IsMaxInclusive) ? pack.VersionSpec.MaxVersion.ToStringSafe()
+                                                                                                : pack.VersionSpec.MinVersion.ToStringSafe();
 
-                                PostPackageInfo dependencyPackageInfo = (dependencyVersion == null || dependencyVersion == "") ?
-                                                                            new PostPackageInfo(dependencyId, null)
-                                                                            : new PostPackageInfo(dependencyId, dependencyVersion);
+                                    PostPackageInfo dependencyPackageInfo = (dependencyVersion == null || dependencyVersion == "") ?
+                                                                                new PostPackageInfo(dependencyId, null)
+                                                                                : new PostPackageInfo(dependencyId, dependencyVersion);
 
-                                //var t = new Task(async () => {
-                                //    await DownloadPackage(dependencyPackageInfo);
-                                //});
+                                    //var t = new Task(async () => {
+                                    //    await DownloadPackage(dependencyPackageInfo);
+                                    //});
 
-                                //t.Start();
-                                await DownloadPackage(dependencyPackageInfo);
+                                    //t.Start();
+                                    await DownloadPackage(dependencyPackageInfo);
+                                }
                             }
                         }
                     }
                 }
+
+                
             }
             else if(downloadInfo is HttpPostedFileBase)
             {

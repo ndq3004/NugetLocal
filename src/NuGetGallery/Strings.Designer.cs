@@ -2957,5 +2957,16 @@ namespace NuGetGallery {
                 return ResourceManager.GetString("Yes", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   Looks up a localized string similar to A package file is required..
+        /// </summary>
+        public static string ErrorWhenDownloading
+        {
+            get
+            {
+                return ResourceManager.GetString("ErrorWhenDownloading", resourceCulture);
+            }
+        }
     }
 }

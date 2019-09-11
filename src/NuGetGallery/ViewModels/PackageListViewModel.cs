@@ -21,7 +21,9 @@ namespace NuGetGallery
             UrlHelper url,
             bool includePrerelease,
             bool isPreviewSearch,
-            PackageToDownload packageToDownloads
+            PackageToDownload packageToDownloads,
+            string needSuggestion,
+            string exactExist
             )
         {
             PageIndex = pageIndex;
@@ -41,6 +43,8 @@ namespace NuGetGallery
             IncludePrerelease = includePrerelease;
             IsPreviewSearch = isPreviewSearch;
             PackageToDownloads = packageToDownloads;
+            NeedSuggestion = needSuggestion;
+            ExactExist = exactExist;
         }
 
         public int FirstResultIndex => 1 + (PageIndex * PageSize);
@@ -65,6 +69,10 @@ namespace NuGetGallery
         public bool IsPreviewSearch { get; }
 
         public PackageToDownload PackageToDownloads { get; }
+
+        public string NeedSuggestion { get; }
+
+        public string ExactExist { get; }
     }
     
 }
