@@ -16,6 +16,7 @@ using System.Threading.Tasks;
 using System.Web;
 using System.Web.Caching;
 using System.Web.Mvc;
+using Newtonsoft.Json.Linq;
 using NuGet.Packaging;
 using NuGet.Services.Entities;
 using NuGet.Services.Licenses;
@@ -122,7 +123,7 @@ namespace NuGetGallery
         private readonly ListPackageItemViewModelFactory _listPackageItemViewModelFactory;
         private readonly ManagePackageViewModelFactory _managePackageViewModelFactory;
         private readonly DeletePackageViewModelFactory _deletePackageViewModelFactory;
-
+        private List<PostPackageInfo> queueWaitDownloadPackages;
         public PackagesController(
             IPackageService packageService,
             IPackageUpdateService packageUpdateService,
@@ -346,29 +347,26 @@ namespace NuGetGallery
 
             string uploadTracingKey = UploadHelper.GetUploadTracingKey(Request.Headers);
 
-            //using (var existingUploadFile = await _uploadFileService.GetUploadFileAsync(currentUser.Key))
-            //{
-            //    if (existingUploadFile != null)
-            //    {
-            //        return Json(HttpStatusCode.Conflict, new[] { new JsonValidationMessage(Strings.UploadPackage_UploadInProgress) });
-            //    }
-            //}
+            using (var existingUploadFile = await _uploadFileService.GetUploadFileAsync(currentUser.Key))
+            {
+                if (existingUploadFile != null)
+                {
+                    return Json(HttpStatusCode.Conflict, new[] { new JsonValidationMessage(Strings.UploadPackage_UploadInProgress) });
+                }
+            }
 
-            //if (uploadFile == null)
-            //{
-            //    return Json(HttpStatusCode.BadRequest, new[] { new JsonValidationMessage(Strings.UploadFileIsRequired) });
-            //}
+            if (uploadFile == null)
+            {
+                return Json(HttpStatusCode.BadRequest, new[] { new JsonValidationMessage(Strings.UploadFileIsRequired) });
+            }
 
-            //if (!AllowedPackageExtentions.Contains(Path.GetExtension(uploadFile.FileName)))
-            //{
-            //    return Json(HttpStatusCode.BadRequest, new[] { new JsonValidationMessage(Strings.UploadFileMustBeNuGetPackage) });
-            //}
+            if (!AllowedPackageExtentions.Contains(Path.GetExtension(uploadFile.FileName)))
+            {
+                return Json(HttpStatusCode.BadRequest, new[] { new JsonValidationMessage(Strings.UploadFileMustBeNuGetPackage) });
+            }
 
-            FileStream file = new FileStream(@"d:\f3api.5.0.1.2.nupkg", FileMode.Open, FileAccess.Read);
-            MemoryStream ms = new MemoryStream();
-            file.CopyTo(ms);
 
-            using (var uploadStream = ms)
+            using (var uploadStream = uploadFile.InputStream)
             {
                 try
                 {
@@ -446,6 +444,12 @@ namespace NuGetGallery
 
             if(existingPackageRegistration == null)
             {
+                //download main package
+                await DownloadAPackage(packageInfo);
+
+                //JObject convert = JObject.Parse(resultDownloadMainPackage.ToString());
+                //string location = convert["location"].ToString();
+
                 var countNumberDependencySet = packageDependencySets.ToArray().Length;
                 if (countNumberDependencySet > 0)
                 {
@@ -473,54 +477,77 @@ namespace NuGetGallery
                         }
                     }
                 }
+
+                existingPackageRegistration = _packageService.FindPackageRegistrationById(packageId);
+                if (existingPackageRegistration != null)
+                {
+                    //JObject convert = JObject.Parse(resultDownloadMainPackage.ToString());
+                    //string location = convert["location"].ToString();
+
+                    return Json(new
+                    {
+                        location = "packages/" + packageId
+                    });
+                }
+                else
+                {
+                    return Json(HttpStatusCode.BadRequest, new[] { new JsonValidationMessage(Strings.ErrorWhenDownloading) });
+                }
             }
-
-            Uri uri = dependencyTrack.GetDownloadUri(packageId, null);
-            var req = WebRequest.Create(uri);
-            Stream stream = req.GetResponse().GetResponseStream();
-            MemoryStream ms = new MemoryStream();
-            stream.CopyTo(ms);
-
-            //using (Stream uploadStream = req.GetResponse().GetResponseStream())
-            using (Stream uploadStream = ms)
+            else
             {
-                try
+                return Json(new
                 {
-                    PackageArchiveReader packageArchiveReader = CreatePackage(uploadStream);
-                    NuspecReader nuspec;
-                    PackageMetadata packageMetadata;
-                    var errors = ManifestValidator.Validate(packageArchiveReader.GetNuspec(), out nuspec, out packageMetadata).ToArray();
-                    if (errors.Length > 0)
-                    {
-                        var errorStrings = new List<JsonValidationMessage>();
-                        foreach (var error in errors)
-                        {
-                            errorStrings.Add(new JsonValidationMessage(error.ErrorMessage));
-                        }
-
-                        return Json(HttpStatusCode.BadRequest, errorStrings.ToArray());
-                    }
-
-                    if (packageMetadata.IsSymbolsPackage())
-                    {
-                        return await UploadSymbolsPackageInternal(packageArchiveReader, uploadStream, nuspec, packageMetadata);
-                    }
-                    else
-                    {
-                        return await UploadPackageInternal(packageArchiveReader, uploadStream, nuspec, packageMetadata);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    return FailedToReadFile(ex);
-                }
-                finally
-                {
-                    //var username = currentUser.Username;
-                    //var uploadKey = username + uploadTracingKey;
-                    //_cacheService.RemoveProgress(uploadKey);
-                }
+                    location = "packages/" + packageId
+                });
             }
+
+            //Uri uri = dependencyTrack.GetDownloadUri(packageId, null);
+            //var req = WebRequest.Create(uri);
+            //Stream stream = req.GetResponse().GetResponseStream();
+            //MemoryStream ms = new MemoryStream();
+            //stream.CopyTo(ms);
+
+            ////using (Stream uploadStream = req.GetResponse().GetResponseStream())
+            //using (Stream uploadStream = ms)
+            //{
+            //    try
+            //    {
+            //        PackageArchiveReader packageArchiveReader = CreatePackage(uploadStream);
+            //        NuspecReader nuspec;
+            //        PackageMetadata packageMetadata;
+            //        var errors = ManifestValidator.Validate(packageArchiveReader.GetNuspec(), out nuspec, out packageMetadata).ToArray();
+            //        if (errors.Length > 0)
+            //        {
+            //            var errorStrings = new List<JsonValidationMessage>();
+            //            foreach (var error in errors)
+            //            {
+            //                errorStrings.Add(new JsonValidationMessage(error.ErrorMessage));
+            //            }
+
+            //            return Json(HttpStatusCode.BadRequest, errorStrings.ToArray());
+            //        }
+
+            //        if (packageMetadata.IsSymbolsPackage())
+            //        {
+            //            return await UploadSymbolsPackageInternal(packageArchiveReader, uploadStream, nuspec, packageMetadata);
+            //        }
+            //        else
+            //        {
+            //            return await UploadPackageInternal(packageArchiveReader, uploadStream, nuspec, packageMetadata);
+            //        }
+            //    }
+            //    catch (Exception ex)
+            //    {
+            //        return FailedToReadFile(ex);
+            //    }
+            //    finally
+            //    {
+            //        //var username = currentUser.Username;
+            //        //var uploadKey = username + uploadTracingKey;
+            //        //_cacheService.RemoveProgress(uploadKey);
+            //    }
+            //}
         }
         private async Task<JsonResult> UploadSymbolsPackageInternal(PackageArchiveReader packageArchiveReader, Stream uploadStream, NuspecReader nuspec, PackageMetadata packageMetadata)
         {
@@ -3067,7 +3094,7 @@ namespace NuGetGallery
                     if (!(string.IsNullOrEmpty(formData.Id) || string.IsNullOrEmpty(formData.OriginalVersion)))
                     {
                         if (!(string.Equals(packageMetadata.Id, formData.Id, StringComparison.OrdinalIgnoreCase)
-                            && string.Equals(packageMetadata.Version.ToFullStringSafe(), formData.Version, StringComparison.OrdinalIgnoreCase)
+                            && string.Equals(packageMetadata.Version.ToString(), formData.Version, StringComparison.OrdinalIgnoreCase)
                             && string.Equals(packageMetadata.Version.OriginalVersion, formData.OriginalVersion, StringComparison.OrdinalIgnoreCase)))
                         {
                             return Json(HttpStatusCode.BadRequest, new[] { new JsonValidationMessage(Strings.VerifyPackage_PackageFileModified) });
@@ -3115,19 +3142,20 @@ namespace NuGetGallery
                 string packageId = downloadInfoCasted.Id;
                 string packageVersion = downloadInfoCasted.Version;
                 
-                Uri uri =(packageVersion == null || packageVersion.Trim() == "") ? dependencyTrack.GetDownloadUri(packageId, null) 
-                                                    : dependencyTrack.GetDownloadUri(packageId, packageVersion);
-                var req = WebRequest.Create(uri);
-                Stream stream = req.GetResponse().GetResponseStream();
-                ms = new MemoryStream();
-                stream.CopyTo(ms);
-
-                IEnumerable<NuGet.PackageDependencySet> packageDependencySets = dependencyTrack.GetDependencySet(packageId, "");
-
+                //Kiểm tra package có tồn tại không
                 PackageRegistration existingPackageRegistration = _packageService.FindPackageRegistrationById(packageId);
 
                 if(existingPackageRegistration == null)
                 {
+                    Uri uri = (packageVersion == null || packageVersion.Trim() == "") ? dependencyTrack.GetDownloadUri(packageId, null)
+                                                    : dependencyTrack.GetDownloadUri(packageId, packageVersion);
+                    var req = WebRequest.Create(uri);
+                    Stream stream = req.GetResponse().GetResponseStream();
+                    ms = new MemoryStream();
+                    stream.CopyTo(ms);
+
+                    IEnumerable<NuGet.PackageDependencySet> packageDependencySets = dependencyTrack.GetDependencySet(packageId, "");
+
                     var countNumberDependencySet = packageDependencySets.ToArray().Length;
                     if (countNumberDependencySet > 0)
                     {
@@ -3156,6 +3184,13 @@ namespace NuGetGallery
                         }
                     }
                 }
+                else
+                {
+                    return Json(new
+                    {
+                        location = "packages/" + packageId
+                    });
+                }
 
                 
             }
@@ -3163,6 +3198,7 @@ namespace NuGetGallery
             {
 
             }
+            
 
             var currentUser = GetCurrentUser();
 
@@ -3228,6 +3264,92 @@ namespace NuGetGallery
             }
         }
 
+        public virtual async Task<JsonResult> DownloadAPackage(Object downloadInfo)
+        {
+            MemoryStream ms = null;
+            DependencyTrack dependencyTrack = new DependencyTrack();
+            if (downloadInfo is PostPackageInfo)
+            {
+                //downloadInfo = (PostPackageInfo)downloadInfo;
+                PostPackageInfo downloadInfoCasted = (PostPackageInfo)downloadInfo;
+                string packageId = downloadInfoCasted.Id;
+                string packageVersion = downloadInfoCasted.Version;
+
+                //Check if package existing
+                PackageRegistration existingPackageRegistration = _packageService.FindPackageRegistrationById(packageId);
+
+                if (existingPackageRegistration != null)
+                {
+                    return Json(new
+                    {
+                        locatio = "packages/" + packageId
+                    });
+                }
+                
+
+                Uri uri = (packageVersion == null || packageVersion.Trim() == "") ? dependencyTrack.GetDownloadUri(packageId, null)
+                                                    : dependencyTrack.GetDownloadUri(packageId, packageVersion);
+                var req = WebRequest.Create(uri);
+                Stream stream = req.GetResponse().GetResponseStream();
+                ms = new MemoryStream();
+                stream.CopyTo(ms);
+
+                IEnumerable<NuGet.PackageDependencySet> packageDependencySets = dependencyTrack.GetDependencySet(packageId, "");
+
+               
+
+
+            }
+            else if (downloadInfo is HttpPostedFileBase)
+            {
+
+            }
+
+            var currentUser = GetCurrentUser();
+
+            string uploadTracingKey = UploadHelper.GetUploadTracingKey(Request.Headers);
+
+            using (var uploadStream = ms)
+            {
+                try
+                {
+                    PackageArchiveReader packageArchiveReader = CreatePackage(uploadStream);
+                    NuspecReader nuspec;
+                    PackageMetadata packageMetadata;
+                    var errors = ManifestValidator.Validate(packageArchiveReader.GetNuspec(), out nuspec, out packageMetadata).ToArray();
+                    if (errors.Length > 0)
+                    {
+                        var errorStrings = new List<JsonValidationMessage>();
+                        foreach (var error in errors)
+                        {
+                            errorStrings.Add(new JsonValidationMessage(error.ErrorMessage));
+                        }
+
+                        return Json(HttpStatusCode.BadRequest, errorStrings.ToArray());
+                    }
+
+                    if (packageMetadata.IsSymbolsPackage())
+                    {
+                        return await UploadSymbolsPackageInternal(packageArchiveReader, uploadStream, nuspec, packageMetadata);
+                    }
+                    else
+                    {
+                        return await UploadPackageInternal(packageArchiveReader, uploadStream, nuspec, packageMetadata);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    return FailedToReadFile(ex);
+                }
+                finally
+                {
+                    var username = currentUser.Username;
+                    var uploadKey = username + uploadTracingKey;
+                    _cacheService.RemoveProgress(uploadKey);
+
+                }
+            }
+        }
         /// <summary>
         /// Function: DownloadDependency
         /// Paramater: PackageDependencySet

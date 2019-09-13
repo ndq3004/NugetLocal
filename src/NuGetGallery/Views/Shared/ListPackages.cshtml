@@ -10,6 +10,11 @@
     <div class="row-heading clearfix">
         <div class="cell-heading">
             <h1 role="alert">
+                <div class="dispay-redirect" style="display:block">
+                    Downloaded this package! Wait for downloading package's dependencies or &nbsp
+                    <br />
+                    <button url="" id="redirect-to-package-button">Redirect to package page!</button>
+                </div>
                 @if (Model.TotalCount == 0)
                 {
                     if (Model.PackageToDownloads.Exist)
@@ -59,6 +64,7 @@
         <div class="cell-controls">
             <a href="?q=@Model.SearchTerm@(Model.IncludePrerelease ? "&prerel=false" : "")">@(Model.IncludePrerelease ? "Hide" : "Show") prerelease</a>
         </div>
+        
     </div>
 
     @if (!Model.Items.Any())
@@ -126,6 +132,58 @@
             </text>
         }
 
+    var global_checkIfPackageClickToDownloaded = false;
+    var global_NamePackageClickedToDownloaded = '';
+    $(document).ready(function () {
+        
+        //for (var i = 0; i < 10; i++) {
+        //    setTimeout(callIfPackageDownloaded(), 2000);
+        //}
+
+    })
+    $('#redirect-to-package-button').click(function () {
+        let url = $(this).attr('url');
+        if (url) {
+            window.location.href = 'packages' + global_NamePackageClickedToDownloaded;
+        }
+        else {
+            $.ajax({
+                method: 'GET',
+                url: "test-package/" + global_NamePackageClickedToDownloaded
+            })
+                .done(function (res) {
+                    if (res === "Found") {
+                        $(this).attr('url', 'packages/' + global_NamePackageClickedToDownloaded);
+                    }
+                    else if (res === 'NotFound') {
+                        console.log("NotFound test");
+                        setTimeout($('#redirect-to-package-button').trigger('click'), 9000);
+                    }
+                })
+                .fail(function () {
+                    console.log("fail test");
+                    setTimeout($('#redirect-to-package-button').trigger('click'), 9000);
+                })
+
+        }
+    })
+        function callIfPackageDownloaded() {
+            $.ajax({
+                method: "get",
+                url: "test-package/" + global_NamePackageClickedToDownloaded,
+                success: function (res) {
+                    if (res === "Found") {
+                        alert(res + "success 1");
+                        //window.location.href = "/packages/" + pack;
+                    }
+
+                    else {  
+                       
+                    }
+                }
+            })
+        }
+
         function callDownloadNuget(element) {
             $(element).on("click", function () {
                 //var packageInfo = document.getElementById("click-to-download").getAttribute("package-name");
@@ -141,12 +199,17 @@
                 var request;
                 if (hasSpace) {
                     var packageObj = packageInfo.split(' ');
+                    global_NamePackageClickedToDownloaded = packageObj[0];
+                    global_checkIfPackageClickToDownloaded = true;              
                     request = JSON.stringify({ Id: packageObj[0], Version: packageObj[1] });
                 }
                 else {
+                    global_NamePackageClickedToDownloaded = packageInfo;
+                    global_checkIfPackageClickToDownloaded = true; 
                     request = JSON.stringify({ Id: packageInfo, Version: "" });
                 }
-                console.log(request);
+                //$('#redirect-to-package-button').trigger('click');
+                console.log(request + "     " + global_checkIfPackageClickToDownloaded);
                 $.ajax({
                     method: "post",
                     url: "packages/downloadbyinput",
@@ -155,7 +218,8 @@
                     success: function (data) {
                         console.log(data);
                         if (data.location) {
-                            window.location.href = data.location;
+                            alert(data.location + "success 2");
+                            //window.location.href = data.location;
                         }
                     },
                     error: function (error, data, xhr) {
@@ -174,9 +238,9 @@
                             url: "test-package/" + pack,
                             success: function (res) {
                                 if (res === "Found") {
-                                    window.location.href = "/packages/"+pack;
+                                    alert(res + "error2");
+                                    //window.location.href = "/packages/"+pack;
                                 }
-
                                 else {
                                     alert("Error when download! Please try again");
                                 }
